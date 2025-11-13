@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maturaball Sponsoren Verwaltung</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+  // Firebase Konfiguration
+  const firebaseConfig = {
+    apiKey: "AIzaSyBP60vvhzVDg62JzR-CNz8N8XDuMf6v-yE",
+    authDomain: "maturaball-sponsoren-95f77.firebaseapp.com",
+    projectId: "maturaball-sponsoren-95f77",
+    storageBucket: "maturaball-sponsoren-95f77.firebasestorage.app",
+    messagingSenderId: "784126887804",
+    appId: "1:784126887804:web:cd474899ab1c2c812846f9"
+  };
+
+  // Firebase initialisieren
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const { useState, useEffect } = React;
+
+  // Icons
+  const Search = () => (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+  );
+
+  const Building2 = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect width="16" height="20" x="4" y="2" rx="2" ry="2"/><path d="M9 22v-4h6v4M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>
+          </svg>
+  );
+
+  const Euro = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M4 10h12M4 14h9M19 6l-7 12"/>
+          </svg>
+  );
+
+  const Mail = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+  );
+
+  const Phone = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+          </svg>
+  );
+
+  const User = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
+  );
+
+  const Plus = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M5 12h14M12 5v14"/>
+          </svg>
+  );
+
+  const X = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+  );
+
+  const Check = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M20 6 9 17l-5-5"/>
+          </svg>
+  );
+
+  const Edit2 = ({className}) => (
+          <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>
+          </svg>
+  );
+
+  function SponsorenVerwaltung() {
+    const [sponsoren, setSponsoren] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showForm, setShowForm] = useState(false);
+    const [editingSponsor, setEditingSponsor] = useState(null);
+    const [notification, setNotification] = useState(null);
+    const [formData, setFormData] = useState({
+      firma: '',
+      betrag: '',
+      kontaktperson: '',
+      email: '',
+      telefon: '',
+      notizen: '',
+      zustand: 'offen'
+    });
+
+    useEffect(() => {
+      // Echtzeit-Synchronisation mit Firebase
+      const unsubscribe = db.collection('sponsoren')
+              .orderBy('erstellt', 'desc')
+              .onSnapshot(
+                      (snapshot) => {
+                        const sponsorenData = [];
+                        snapshot.forEach((doc) => {
+                          sponsorenData.push({ id: doc.id, ...doc.data() });
+                        });
+                        setSponsoren(sponsorenData);
+                        setLoading(false);
+                      },
+                      (error) => {
+                        console.error('Firebase Fehler:', error);
+                        setLoading(false);
+                      }
+              );
+
+      return () => unsubscribe();
+    }, []);
+
+    const showNotification = (message, type = 'success') => {
+      setNotification({ message, type });
+      setTimeout(() => setNotification(null), 3000);
+    };
+
+    const handleSubmit = async () => {
+      if (editingSponsor) {
+        try {
+          await db.collection('sponsoren').doc(editingSponsor.id).update({
+            ...formData,
+            bearbeitet: firebase.firestore.FieldValue.serverTimestamp()
+          });
+
+          setFormData({
+            firma: '',
+            betrag: '',
+            kontaktperson: '',
+            email: '',
+            telefon: '',
+            notizen: '',
+            zustand: 'offen'
+          });
+          setShowForm(false);
+          setEditingSponsor(null);
+          showNotification('Sponsor erfolgreich aktualisiert!');
+        } catch (error) {
+          console.error('Fehler:', error);
+          showNotification('Fehler beim Aktualisieren', 'error');
+        }
+        return;
+      }
+
+      const firmaLower = formData.firma.toLowerCase().trim();
+      const existingSponsor = sponsoren.find(s =>
+              s.firma.toLowerCase().trim() === firmaLower
+      );
+
+      if (existingSponsor) {
+        showNotification('Dieser Sponsor existiert bereits!', 'warning');
+        setSearchTerm(formData.firma);
+        setShowForm(false);
+        return;
+      }
+
+      try {
+        await db.collection('sponsoren').add({
+          ...formData,
+          erstellt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        setFormData({
+          firma: '',
+          betrag: '',
+          kontaktperson: '',
+          email: '',
+          telefon: '',
+          notizen: '',
+          zustand: 'offen'
+        });
+        setShowForm(false);
+        showNotification('Sponsor erfolgreich hinzugefügt!');
+      } catch (error) {
+        console.error('Fehler:', error);
+        showNotification('Fehler beim Speichern', 'error');
+      }
+    };
+
+    const deleteSponsor = async (id) => {
+      if (!confirm('Sponsor wirklich löschen?')) return;
+
+      try {
+        await db.collection('sponsoren').doc(id).delete();
+        showNotification('Sponsor gelöscht');
+      } catch (error) {
+        console.error('Fehler:', error);
+        showNotification('Fehler beim Löschen', 'error');
+      }
+    };
+
+    const editSponsor = (sponsor) => {
+      setFormData({
+        firma: sponsor.firma,
+        betrag: sponsor.betrag,
+        kontaktperson: sponsor.kontaktperson || '',
+        email: sponsor.email || '',
+        telefon: sponsor.telefon || '',
+        notizen: sponsor.notizen || '',
+        zustand: sponsor.zustand || 'offen'
+      });
+      setEditingSponsor(sponsor);
+      setShowForm(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const cancelEdit = () => {
+      setFormData({
+        firma: '',
+        betrag: '',
+        kontaktperson: '',
+        email: '',
+        telefon: '',
+        notizen: '',
+        zustand: 'offen'
+      });
+      setEditingSponsor(null);
+      setShowForm(false);
+    };
+
+    const filteredSponsoren = sponsoren.filter(sponsor =>
+            sponsor.firma.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            sponsor.kontaktperson?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const gesamtbetrag = sponsoren.reduce((sum, s) =>
+            sum + (parseFloat(s.betrag) || 0), 0
+    );
+
+    if (loading) {
+      return (
+              <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 flex items-center justify-center">
+                <div className="text-indigo-600 text-xl">Lade Daten aus Firebase...</div>
+              </div>
+      );
+    }
+
+    return (
+            <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50 p-4 md:p-8">
+              {notification && (
+                      <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${
+                              notification.type === 'success' ? 'bg-green-500' :
+                                      notification.type === 'warning' ? 'bg-amber-500' :
+                                              'bg-red-500'
+                      } text-white`}>
+                        <Check className="w-5 h-5" />
+                        {notification.message}
+                      </div>
+              )}
+
+              <div className="max-w-6xl mx-auto">
+                <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8 mb-6">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                    <div>
+                      <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
+                        Maturaball Sponsoren
+                      </h1>
+                      <p className="text-gray-600">
+                        {sponsoren.length} Sponsor{sponsoren.length !== 1 ? 'en' : ''} ·
+                        Gesamt: €{gesamtbetrag.toLocaleString('de-AT', { minimumFractionDigits: 2 })}
+                      </p>
+                      <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                        <span className="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Live mit Firebase synchronisiert
+                      </p>
+                    </div>
+                    <button
+                            onClick={() => {
+                              if (showForm && !editingSponsor) {
+                                setShowForm(false);
+                              } else if (editingSponsor) {
+                                cancelEdit();
+                              } else {
+                                setShowForm(true);
+                              }
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors"
+                    >
+                      {showForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                      {showForm ? 'Abbrechen' : 'Neuer Sponsor'}
+                    </button>
+                  </div>
+
+                  <div className="relative mb-6">
+                    <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                      <Search />
+                    </div>
+                    <input
+                            type="text"
+                            placeholder="Sponsor suchen..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  {showForm && (
+                          <div className="bg-indigo-50 p-6 rounded-lg mb-6">
+                            <h2 className="text-xl font-bold text-gray-800 mb-4">
+                              {editingSponsor ? 'Sponsor bearbeiten' : 'Neuer Sponsor'}
+                            </h2>
+                            <div className="grid md:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Firma / Organisation *
+                                </label>
+                                <div className="relative">
+                                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <Building2 />
+                                  </div>
+                                  <input
+                                          type="text"
+                                          required
+                                          value={formData.firma}
+                                          onChange={(e) => setFormData({...formData, firma: e.target.value})}
+                                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                          placeholder="z.B. Raiffeisenbank Vöcklabruck"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Betrag (€) *
+                                </label>
+                                <div className="relative">
+                                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <Euro />
+                                  </div>
+                                  <input
+                                          type="number"
+                                          step="0.01"
+                                          required
+                                          value={formData.betrag}
+                                          onChange={(e) => setFormData({...formData, betrag: e.target.value})}
+                                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                          placeholder="500.00"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Kontaktperson
+                                </label>
+                                <div className="relative">
+                                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <User />
+                                  </div>
+                                  <input
+                                          type="text"
+                                          value={formData.kontaktperson}
+                                          onChange={(e) => setFormData({...formData, kontaktperson: e.target.value})}
+                                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                          placeholder="Max Mustermann"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  E-Mail
+                                </label>
+                                <div className="relative">
+                                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <Mail />
+                                  </div>
+                                  <input
+                                          type="email"
+                                          value={formData.email}
+                                          onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                          placeholder="kontakt@firma.at"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Telefon
+                                </label>
+                                <div className="relative">
+                                  <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                                    <Phone />
+                                  </div>
+                                  <input
+                                          type="tel"
+                                          value={formData.telefon}
+                                          onChange={(e) => setFormData({...formData, telefon: e.target.value})}
+                                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                          placeholder="+43 123 456789"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Zustand *
+                                </label>
+                                <select
+                                        required
+                                        value={formData.zustand}
+                                        onChange={(e) => setFormData({...formData, zustand: e.target.value})}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                >
+                                  <option value="offen">Noch keine Antwort</option>
+                                  <option value="zugesagt">Zugesagt</option>
+                                  <option value="abgesagt">Abgesagt</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                  Notizen
+                                </label>
+                                <input
+                                        type="text"
+                                        value={formData.notizen}
+                                        onChange={(e) => setFormData({...formData, notizen: e.target.value})}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                                        placeholder="Zusätzliche Informationen"
+                                />
+                              </div>
+                            </div>
+
+                            <button
+                                    onClick={handleSubmit}
+                                    className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-colors"
+                            >
+                              {editingSponsor ? 'Änderungen speichern' : 'Sponsor hinzufügen'}
+                            </button>
+                          </div>
+                  )}
+                </div>
+
+                <div className="grid gap-4">
+                  {filteredSponsoren.length === 0 ? (
+                          <div className="bg-white rounded-lg p-8 text-center text-gray-500">
+                            {searchTerm ? 'Keine Sponsoren gefunden' : 'Noch keine Sponsoren erfasst'}
+                          </div>
+                  ) : (
+                          filteredSponsoren.map(sponsor => (
+                                  <div key={sponsor.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+                                    <div className="flex justify-between items-start">
+                                      <div className="flex-1">
+                                        <div className="flex items-center gap-3 mb-2">
+                                          <Building2 className="w-6 h-6 text-indigo-600" />
+                                          <h3 className="text-xl font-bold text-gray-800">{sponsor.firma}</h3>
+                                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                                  sponsor.zustand === 'zugesagt' ? 'bg-green-100 text-green-800' :
+                                                          sponsor.zustand === 'abgesagt' ? 'bg-red-100 text-red-800' :
+                                                                  'bg-yellow-100 text-yellow-800'
+                                          }`}>
+                                                        {sponsor.zustand === 'zugesagt' ? '✓ Zugesagt' :
+                                                                sponsor.zustand === 'abgesagt' ? '✗ Abgesagt' :
+                                                                        '⏳ Offen'}
+                                                    </span>
+                                        </div>
+                                        <div className="text-2xl font-bold text-green-600 mb-3">
+                                          €{parseFloat(sponsor.betrag).toLocaleString('de-AT', { minimumFractionDigits: 2 })}
+                                        </div>
+                                        <div className="grid md:grid-cols-2 gap-2 text-sm text-gray-600">
+                                          {sponsor.kontaktperson && (
+                                                  <div className="flex items-center gap-2">
+                                                    <User className="w-4 h-4" />
+                                                    {sponsor.kontaktperson}
+                                                  </div>
+                                          )}
+                                          {sponsor.email && (
+                                                  <div className="flex items-center gap-2">
+                                                    <Mail className="w-4 h-4" />
+                                                    {sponsor.email}
+                                                  </div>
+                                          )}
+                                          {sponsor.telefon && (
+                                                  <div className="flex items-center gap-2">
+                                                    <Phone className="w-4 h-4" />
+                                                    {sponsor.telefon}
+                                                  </div>
+                                          )}
+                                        </div>
+                                        {sponsor.notizen && (
+                                                <p className="mt-2 text-sm text-gray-600 italic">{sponsor.notizen}</p>
+                                        )}
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <button
+                                                onClick={() => editSponsor(sponsor)}
+                                                className="text-indigo-600 hover:text-indigo-800 p-2"
+                                                title="Bearbeiten"
+                                        >
+                                          <Edit2 className="w-5 h-5" />
+                                        </button>
+                                        <button
+                                                onClick={() => deleteSponsor(sponsor.id)}
+                                                className="text-red-500 hover:text-red-700 p-2"
+                                                title="Löschen"
+                                        >
+                                          <X className="w-5 h-5" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                          ))
+                  )}
+                </div>
+              </div>
+            </div>
+    );
+  }
+
+  const root = ReactDOM.createRoot(document.getElementById('root'));
+  root.render(<SponsorenVerwaltung />);
+</script>
+</body>
+</html>
